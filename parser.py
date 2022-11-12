@@ -1,5 +1,28 @@
 import lexer
 
+from enum import Enum
+
+class ErrorCode(Enum):
+    UNEXPECTED_TOKEN = 'Unexpected token'
+    ID_NOT_FOUND     = 'Identifier not found'
+    DUPLICATE_ID     = 'Duplicate id found'
+
+class Error(Exception):
+    def __init__(self, error_code=None, token=None, message=None):
+        self.error_code = error_code
+        self.token = token
+        # add exception class name before the message
+        self.message = f'{self.__class__.__name__}: {message}'
+
+class LexerError(Error):
+    pass
+
+class ParserError(Error):
+    pass
+
+class SemanticError(Error):
+    pass
+
 INTEGER = 'INTEGER'
 NUMBER = 'NUMBER'
 STR = 'STR'
@@ -11,6 +34,7 @@ MINUS = 'MINUS'
 MULTIPLY = 'MULTIPLY'
 DIVIDE = 'DIVIDE'
 MODULO = 'MODULO'
+
 
 EQ = '=='
 NE = '!='
@@ -37,6 +61,7 @@ ELSEIF = 'else if'
 ELSE = 'else'
 LET = 'let'
 WHILE = 'while'
+PRINT = 'println!'
 
 EOF = 'EOF'
 
@@ -89,6 +114,18 @@ class While(AST):
     def __init__(self, condition, body):
         self.condition = condition
         self.body = body
+        
+        
+        
+        
+        
+        
+class PRINT(AST):
+    def __init__(self,body):
+        self.body = body 
+        
+        
+     
 
 
 class Compare(AST):
@@ -108,20 +145,26 @@ class Var(AST):
 class NoOp(AST):
     pass
 
-
 class Parser(object):
     def __init__(self, lexer):
         self.lexer = lexer
         self.current_token = self.lexer.get_next_token()
 
-    def error(self):
-        raise Exception('Invalid Syntax')
+    def error(self , error_code , token ):
+        raise ParserError(
+            error_code=error_code,
+            token=token,
+            message=f'{error_code.value} -> {token}',
+        )
 
     def eat(self, token_type):
         if self.current_token.type == token_type:
             self.current_token = self.lexer.get_next_token()
         else:
-            self.error()
+            self.error(
+                error_code = ErrorCode.UNEXPECTED_TOKEN,
+                token = self.current_token,
+            )
 
     def program(self):
         """program:     compound_statement EOF"""
@@ -157,7 +200,7 @@ class Parser(object):
                         | assignment_statement
                         | empty
         """
-        if self.current_token.type == LET or self.current_token.type == ID:
+        if self.current_token.type == LET:
             node = self.assignment_statement()
         elif self.current_token.type == IF:
             node = self.if_statement()
@@ -231,8 +274,7 @@ class Parser(object):
         """
         variable:   ID
         """
-        if self.current_token.type == LET:
-            self.eat(LET)
+        self.eat(LET)
         node = Var(self.current_token)
         return node
 
@@ -271,7 +313,7 @@ class Parser(object):
 
     def term(self):
         node = self.factor()
-        while self.current_token.type in (MULTIPLY, DIVIDE, MODULO, EQ, NE, LT, GT, LE, GE):
+        while self.current_token.type in (MULTIPLY, DIVIDE, MODULO):
             token = self.current_token
             if token.type == MULTIPLY:
                 self.eat(MULTIPLY)
@@ -279,18 +321,6 @@ class Parser(object):
                 self.eat(DIVIDE)
             elif token.type == MODULO:
                 self.eat(MODULO)
-            elif token.type == EQ:
-                self.eat(EQ)
-            elif token.type == NE:
-                self.eat(NE)
-            elif token.type == LT:
-                self.eat(LT)
-            elif token.type == GT:
-                self.eat(GT)
-            elif token.type == LE:
-                self.eat(LE)
-            elif token.type == GE:
-                self.eat(GE)
             node = BinOP(left=node, op=token, right=self.factor())
 
         return node
@@ -306,9 +336,6 @@ class Parser(object):
         elif token.type == STR:
             self.eat(STR)
             return Num(token)
-        elif token.type == ID:
-            self.eat(ID)
-            return Var(token)
         elif token.type == LPAREN:
             self.eat(LPAREN)
             node = self.expr()
@@ -323,6 +350,9 @@ class Parser(object):
         while self.current_token.type != EOF:
             self.error()
         return node
+    
+    
+    
 
 
 def main():
@@ -336,4 +366,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
