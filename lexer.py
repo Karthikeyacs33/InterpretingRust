@@ -1,5 +1,29 @@
 import token
 
+from enum import Enum
+
+class ErrorCode(Enum):
+    UNEXPECTED_TOKEN = 'Unexpected token'
+    ID_NOT_FOUND     = 'Identifier not found'
+    DUPLICATE_ID     = 'Duplicate id found'
+
+class Error(Exception):
+    def __init__(self, error_code=None, token=None, message=None):
+        self.error_code = error_code
+        self.token = token
+        # add exception class name before the message
+        self.message = f'{self.__class__.__name__}: {message}'
+
+class LexerError(Error):
+    pass
+
+class ParserError(Error):
+    pass
+
+class SemanticError(Error):
+    pass
+
+
 INTEGER = 'INTEGER'
 NUMBER = 'NUMBER'
 STR = 'STR'
@@ -37,6 +61,7 @@ ELSEIF = 'else if'
 ELSE = 'else'
 LET = 'let'
 WHILE = 'while'
+PRINT = 'println!'
 
 EOF = 'EOF'
 
@@ -48,6 +73,7 @@ RESERVED_KEYWORDS = {
     'else': token.Token(ELSE, 'else'),
     'while': token.Token(WHILE, 'while'),
     'let': token.Token(LET, 'let'),
+    'println!': token.Token(PRINT, 'println!'),
 }
 
 class Lexer(object):
@@ -58,21 +84,31 @@ class Lexer(object):
         self.pos = 0
         # line of the text
         self.line = 1
+        self.column = 1
         # current token
         self.current_token = None
         self.current_char = self.text[self.pos]
 
     def error(self):
-        raise Exception('Invalid syntax')
-
+        s = "Lexer error on '{lexeme}' line: {line} column: {column}".format(
+            lexeme=self.current_char,
+            lineno=self.line,
+            column=self.column,
+            )
+        raise LexerError(message=s)
+        
     def advance(self):
         # advance the pos variable to go to the next char
+        if self.current_char == '\n':
+            self.line += 1
+            self.column = 0
         self.pos += 1
 
         if self.pos > len(self.text) - 1:
             self.current_char = None
         else:
             self.current_char = self.text[self.pos]
+            self.column += 1
 
     def peek(self, n):
         peek_pos = self.pos + n
@@ -125,7 +161,7 @@ class Lexer(object):
     def _id(self):
         # handles identifiers and reserved keywords
         result = ''
-        while self.current_char is not None and (self.current_char.isalnum() or self.current_char == '_'):
+        while self.current_char is not None and self.current_char.isalnum():
             result += self.current_char
             self.advance()
 
@@ -258,6 +294,18 @@ class Lexer(object):
                 self.advance()
                 self.advance()
                 return token.Token(WHILE, 'while')
+            
+            if self.current_char == 'p' and self.peek(1) == 'r' and self.peek(2) == 'i' and self.peek(3) == 'n' and self.peek(4) == 't' and self.peek(5) == 'l' and self.peek(6) == 'n' and self.peek(7) == '!':
+                self.advance()
+                self.advance()
+                self.advance()
+                self.advance()
+                self.advance()
+                self.advance()
+                self.advance()
+                self.advance()
+                return token.Token(PRINT, 'println!')
+                
 
             if self.current_char == chr(26):
                 return token.Token(EOF, 'EOF')
